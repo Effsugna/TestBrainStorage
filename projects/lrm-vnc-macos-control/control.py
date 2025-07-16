@@ -19,4 +19,4 @@ def click_mouse(x, y):
 def type_string(text):
     for char in text:
         event_down = Quartz.CGEventCreateKeyboardEvent(None, 0, True)
-        event_up = Quartz.CGEventCreateKeyboardEvent(None, 0_
+        event_up = Quartz.CGEventCreateKeyboardEvent(None, keycode, False)
