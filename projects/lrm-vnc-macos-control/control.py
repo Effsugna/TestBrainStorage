@@ -16,7 +16,8 @@ def click_mouse(x, y):
         Quartz.CGEventPost(Quartz.kCGHIDEventTap, event)
 
 
-def type_string(text):
-    for char in text:
-        event_down = Quartz.CGEventCreateKeyboardEvent(None, 0, True)
-        event_up = Quartz.CGEventCreateKeyboardEvent(None, keycode, False)
+def key_press(keycode):
+    event_down = Quartz.CGEventCreateKeyboardEvent(None, keycode, True)
+    event_up = Quartz.CGEventCreateKeyboardEvent(None, keycode, False)
+    Quartz.CGEventPost(Quartz.kCGHIDEventTap, event_down)
+    Quartz.CGEventPost(Quartz.kCGHIDEventTap, event_up)
