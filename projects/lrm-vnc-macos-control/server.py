@@ -4,7 +4,7 @@ from io import BytesIO
 from flask import Flask, jsonify, request
 from PIL import Image
 import Quartz
-from control import mouse_click, mouse_move, key_press
+from control import click_mouse, move_mouse, key_press
 
 app = Flask(__name__)
 
@@ -45,7 +45,7 @@ def act_endpoint():
             x = data.get("x")
             y = data.get("y")
             if x is not None and y is not None:
-                mouse_click(x, y)
+                click_mouse(x, y)
                 return jsonify({"status": "ok"})
             else:
                 return jsonify({"error": "Missing x or y for click action"}), 400
@@ -53,7 +53,7 @@ def act_endpoint():
             x = data.get("x")
             y = data.get("y")
             if x is not None and y is not None:
-                mouse_move(x, y)
+                move_mouse(x, y)
                 return jsonify({"status": "ok"})
             else:
                 return jsonify({"error": "Missing x or y for move action"}), 400

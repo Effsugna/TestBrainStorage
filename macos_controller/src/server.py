@@ -16,8 +16,8 @@ from livekit import api
 from .livekit_handler import LiveKitHandler
 
 # Import VNC client and action handlers
-from vnc_client import VNCClient
-import action_handlers
+from .vnc_client import VNCClient
+from . import action_handlers
 
 # Configure logging
 logging.basicConfig(
@@ -56,7 +56,7 @@ async def main():
         username=MACOS_USERNAME,
         encryption=VNC_ENCRYPTION
     )
-    success, error_message = vnc_client.connect()
+    success, error_message = await vnc_client.connect()
     if not success:
         logger.error(f"Failed to connect VNC client: {error_message}")
         raise ConnectionError(f"VNC connection failed: {error_message}")

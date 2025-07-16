@@ -3,12 +3,11 @@ from typing import Any, Dict, List, Optional, Tuple
 import base64
 import os
 import sys
-import subprocess
-import time
+import asyncio # Import asyncio for async operations
 
 import mcp.types as types
 # Import vnc_client from the current directory
-from vnc_client import VNCClient, capture_vnc_screen
+from .vnc_client import VNCClient
 
 # Configure logging
 logging.basicConfig(
@@ -27,7 +26,7 @@ async def handle_remote_macos_get_screen(arguments: dict[str, Any]) -> list[type
         return [types.TextContent(type="text", text="VNC client not connected.")]
 
     # Capture screen using the existing connection
-    screen_data = vnc_client.capture_screen()
+    screen_data = await vnc_client.capture_screen()
 
     if not screen_data:
         return [types.TextContent(type="text", text="Failed to capture screenshot.")]
@@ -50,7 +49,7 @@ async def handle_remote_macos_get_screen(arguments: dict[str, Any]) -> list[type
         )
     ]
 
-def handle_remote_macos_mouse_scroll(arguments: dict[str, Any]) -> list[types.TextContent | types.ImageContent | types.EmbeddedResource]:
+async def handle_remote_macos_mouse_scroll(arguments: dict[str, Any]) -> list[types.TextContent | types.ImageContent | types.EmbeddedResource]:
     """Perform a mouse scroll action on a remote MacOs machine."""
     if not vnc_client or not vnc_client.socket:
         return [types.TextContent(type="text", text="VNC client not connected.")]
@@ -82,7 +81,7 @@ def handle_remote_macos_mouse_scroll(arguments: dict[str, Any]) -> list[types.Te
     scaled_y = max(0, min(scaled_y, target_height - 1))
 
     # First move the mouse to the target location without clicking
-    move_result = vnc_client.send_pointer_event(scaled_x, scaled_y, 0)
+    move_result = await vnc_client.send_pointer_event(scaled_x, scaled_y, 0)
 
     # Map of special keys for page up/down
     special_keys = {
@@ -92,7 +91,7 @@ def handle_remote_macos_mouse_scroll(arguments: dict[str, Any]) -> list[types.Te
 
     # Send the appropriate page key based on direction
     key = special_keys["up" if direction.lower() == "up" else "down"]
-    key_result = vnc_client.send_key_event(key, True) and vnc_client.send_key_event(key, False)
+    key_result = await vnc_client.send_key_event(key, True) and await vnc_client.send_key_event(key, False)
 
     # Prepare the response with useful details
     scale_factors = {
@@ -109,7 +108,7 @@ Target dimensions: {target_width}x{target_height}
 Scale factors: {scale_factors['x']:.4f}x, {scale_factors['y']:.4f}y"""
     )]
 
-def handle_remote_macos_mouse_click(arguments: dict[str, Any]) -> list[types.TextContent | types.ImageContent | types.EmbeddedResource]:
+async def handle_remote_macos_mouse_click(arguments: dict[str, Any]) -> list[types.TextContent | types.ImageContent | types.EmbeddedResource]:
     """Perform a mouse click action on a remote MacOs machine."""
     if not vnc_client or not vnc_client.socket:
         return [types.TextContent(type="text", text="VNC client not connected.")]
@@ -141,7 +140,7 @@ def handle_remote_macos_mouse_click(arguments: dict[str, Any]) -> list[types.Tex
     scaled_y = max(0, min(scaled_y, target_height - 1))
 
     # Single click
-    result = vnc_client.send_mouse_click(scaled_x, scaled_y, button, False)
+    result = await vnc_client.send_mouse_click(scaled_x, scaled_y, button, False)
 
     # Prepare the response with useful details
     scale_factors = {
@@ -157,7 +156,7 @@ Target dimensions: {target_width}x{target_height}
 Scale factors: {scale_factors['x']:.4f}x, {scale_factors['y']:.4f}y"""
     )]
 
-def handle_remote_macos_send_keys(arguments: dict[str, Any]) -> list[types.TextContent | types.ImageContent | types.EmbeddedResource]:
+async def handle_remote_macos_send_keys(arguments: dict[str, Any]) -> list[types.TextContent | types.ImageContent | types.EmbeddedResource]:
     """Send keyboard input to a remote MacOs machine."""
     if not vnc_client or not vnc_client.socket:
         return [types.TextContent(type="text", text="VNC client not connected.")]
@@ -230,7 +229,7 @@ def handle_remote_macos_send_keys(arguments: dict[str, Any]) -> list[types.TextC
     if special_key:
         if special_key.lower() in special_keys:
             key = special_keys[special_key.lower()]
-            if vnc_client.send_key_event(key, True) and vnc_client.send_key_event(key, False):
+            if await vnc_client.send_key_event(key, True) and await vnc_client.send_key_event(key, False):
                 result_message.append(f"Sent special key: {special_key}")
             else:
                 result_message.append(f"Failed to send special key: {special_key}")
@@ -240,7 +239,7 @@ def handle_remote_macos_send_keys(arguments: dict[str, Any]) -> list[types.TextC
 
     # Process text
     if text:
-        if vnc_client.send_text(text):
+        if await vnc_client.send_text(text):
             result_message.append(f"Sent text: '{text}'")
         else:
             result_message.append(f"Failed to send text: '{text}'")
@@ -266,14 +265,14 @@ def handle_remote_macos_send_keys(arguments: dict[str, Any]) -> list[types.TextC
                 break
 
         if len(keys) == len(key_combination.split('+')):
-            if vnc_client.send_key_combination(keys):
+            if await vnc_client.send_key_combination(keys):
                 result_message.append(f"Sent key combination: {key_combination}")
             else:
                 result_message.append(f"Failed to send key combination: {key_combination}")
 
     return [types.TextContent(type="text", text="\n".join(result_message))]
 
-def handle_remote_macos_mouse_double_click(arguments: dict[str, Any]) -> list[types.TextContent | types.ImageContent | types.EmbeddedResource]:
+async def handle_remote_macos_mouse_double_click(arguments: dict[str, Any]) -> list[types.TextContent | types.ImageContent | types.EmbeddedResource]:
     """Perform a mouse double-click action on a remote MacOs machine."""
     if not vnc_client or not vnc_client.socket:
         return [types.TextContent(type="text", text="VNC client not connected.")]
@@ -305,7 +304,7 @@ def handle_remote_macos_mouse_double_click(arguments: dict[str, Any]) -> list[ty
     scaled_y = max(0, min(scaled_y, target_height - 1))
 
     # Double click
-    result = vnc_client.send_mouse_click(scaled_x, scaled_y, button, True)
+    result = await vnc_client.send_mouse_click(scaled_x, scaled_y, button, True)
 
     # Prepare the response with useful details
     scale_factors = {
@@ -321,7 +320,7 @@ Target dimensions: {target_width}x{target_height}
 Scale factors: {scale_factors['x']:.4f}x, {scale_factors['y']:.4f}y"""
     )]
 
-def handle_remote_macos_mouse_move(arguments: dict[str, Any]) -> list[types.TextContent | types.ImageContent | types.EmbeddedResource]:
+async def handle_remote_macos_mouse_move(arguments: dict[str, Any]) -> list[types.TextContent | types.ImageContent | types.EmbeddedResource]:
     """Move the mouse cursor on a remote MacOs machine."""
     if not vnc_client or not vnc_client.socket:
         return [types.TextContent(type="text", text="VNC client not connected.")]
@@ -352,7 +351,7 @@ def handle_remote_macos_mouse_move(arguments: dict[str, Any]) -> list[types.Text
     scaled_y = max(0, min(scaled_y, target_height - 1))
 
     # Move mouse pointer (button_mask=0 means no buttons are pressed)
-    result = vnc_client.send_pointer_event(scaled_x, scaled_y, 0)
+    result = await vnc_client.send_pointer_event(scaled_x, scaled_y, 0)
 
     # Prepare the response with useful details
     scale_factors = {
@@ -368,7 +367,7 @@ Target dimensions: {target_width}x{target_height}
 Scale factors: {scale_factors['x']:.4f}x, {scale_factors['y']:.4f}y"""
     )]
 
-def handle_remote_macos_open_application(arguments: dict[str, Any]) -> List[types.TextContent]:
+async def handle_remote_macos_open_application(arguments: dict[str, Any]) -> List[types.TextContent]:
     """
     Opens or activates an application on the remote MacOS machine using VNC.
 
@@ -386,35 +385,35 @@ def handle_remote_macos_open_application(arguments: dict[str, Any]) -> List[type
     if not identifier:
         raise ValueError("identifier is required")
 
-    start_time = time.time()
+    start_time = asyncio.get_event_loop().time() # Use asyncio's time for async context
 
     # Send Command+Space to open Spotlight
     cmd_key = 0xffeb  # Command key
     space_key = 0x20  # Space key
 
     # Press Command+Space
-    vnc_client.send_key_event(cmd_key, True)
-    vnc_client.send_key_event(space_key, True)
+    await vnc_client.send_key_event(cmd_key, True)
+    await vnc_client.send_key_event(space_key, True)
 
     # Release Command+Space
-    vnc_client.send_key_event(space_key, False)
-    vnc_client.send_key_event(cmd_key, False)
+    await vnc_client.send_key_event(space_key, False)
+    await vnc_client.send_key_event(cmd_key, False)
 
     # Small delay to let Spotlight open
-    time.sleep(0.5)
+    await asyncio.sleep(0.5)
 
     # Type the application name
-    vnc_client.send_text(identifier)
+    await vnc_client.send_text(identifier)
 
     # Small delay to let Spotlight find the app
-    time.sleep(0.5)
+    await asyncio.sleep(0.5)
 
     # Press Enter to launch
     enter_key = 0xff0d
-    vnc_client.send_key_event(enter_key, True)
-    vnc_client.send_key_event(enter_key, False)
+    await vnc_client.send_key_event(enter_key, True)
+    await vnc_client.send_key_event(enter_key, False)
 
-    end_time = time.time()
+    end_time = asyncio.get_event_loop().time()
     processing_time = round(end_time - start_time, 3)
 
     return [types.TextContent(
@@ -422,7 +421,7 @@ def handle_remote_macos_open_application(arguments: dict[str, Any]) -> List[type
         text=f"Launched application: {identifier}\nProcessing time: {processing_time}s"
     )]
 
-def handle_remote_macos_mouse_drag_n_drop(arguments: dict[str, Any]) -> list[types.TextContent | types.ImageContent | types.EmbeddedResource]:
+async def handle_remote_macos_mouse_drag_n_drop(arguments: dict[str, Any]) -> list[types.TextContent | types.ImageContent | types.EmbeddedResource]:
     """Perform a mouse drag operation on a remote MacOs machine."""
     if not vnc_client or not vnc_client.socket:
         return [types.TextContent(type="text", text="VNC client not connected.")]
@@ -467,24 +466,24 @@ def handle_remote_macos_mouse_drag_n_drop(arguments: dict[str, Any]) -> list[typ
     dy = (scaled_end_y - scaled_start_y) / steps
 
     # Move to start position
-    if not vnc_client.send_pointer_event(scaled_start_x, scaled_start_y, 0):
+    if not await vnc_client.send_pointer_event(scaled_start_x, scaled_start_y, 0):
         return [types.TextContent(type="text", text="Failed to move to start position")]
 
     # Press button
     button_mask = 1 << (button - 1)
-    if not vnc_client.send_pointer_event(scaled_start_x, scaled_start_y, button_mask):
+    if not await vnc_client.send_pointer_event(scaled_start_x, scaled_start_y, button_mask):
         return [types.TextContent(type="text", text="Failed to press mouse button")]
 
     # Perform drag
     for step in range(1, steps + 1):
         current_x = int(scaled_start_x + dx * step)
         current_y = int(scaled_start_y + dy * step)
-        if not vnc_client.send_pointer_event(current_x, current_y, button_mask):
+        if not await vnc_client.send_pointer_event(current_x, current_y, button_mask):
             return [types.TextContent(type="text", text=f"Failed during drag at step {step}")]
-        time.sleep(delay_ms / 1000.0)  # Convert ms to seconds
+        await asyncio.sleep(delay_ms / 1000.0)  # Convert ms to seconds
 
     # Release button at final position
-    if not vnc_client.send_pointer_event(scaled_end_x, scaled_end_y, 0):
+    if not await vnc_client.send_pointer_event(scaled_end_x, scaled_end_y, 0):
         return [types.TextContent(type="text", text="Failed to release mouse button")]
 
     # Prepare the response with useful details
