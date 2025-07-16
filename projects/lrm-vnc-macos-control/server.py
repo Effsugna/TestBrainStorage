@@ -1,9 +1,10 @@
 import time
 import base64
 from io import BytesIO
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from PIL import Image
 import Quartz
+from control import mouse_click, mouse_move, key_press
 
 app = Flask(__name__)
 
@@ -34,6 +35,39 @@ def capture_endpoint():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route("/act", methods=["POST"])
+def act_endpoint():
+    try:
+        data = request.get_json()
+        action = data.get("action")
+
+        if action == "click":
+            x = data.get("x")
+            y = data.get("y")
+            if x is not None and y is not None:
+                mouse_click(x, y)
+                return jsonify({"status": "ok"})
+            else:
+                return jsonify({"error": "Missing x or y for click action"}), 400
+        elif action == "move":
+            x = data.get("x")
+            y = data.get("y")
+            if x is not None and y is not None:
+                mouse_move(x, y)
+                return jsonify({"status": "ok"})
+            else:
+                return jsonify({"error": "Missing x or y for move action"}), 400
+        elif action == "key":
+            keycode = data.get("keycode")
+            if keycode is not None:
+                key_press(keycode)
+                return jsonify({"status": "ok"})
+            else:
+                return jsonify({"error": "Missing keycode for key action"}), 400
+        else:
+            return jsonify({"error": "Unknown action type"}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5050)
-
