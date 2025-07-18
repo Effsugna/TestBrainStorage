@@ -3,7 +3,7 @@ import datetime
 
 # === Config ===
 url = "https://open.er-api.com/v6/latest/USD"
-log_dir = "projects/indicators/simple exchange rate/logs"
+log_dir = "projects/indicators/simple-exchange-rate/logs"
 now = datetime.datetime.now().strftime("%Y-%m-%d-%H%M")
 human_time = datetime.datetime.now().strftime("%Y-%m-%d – %H:%M")
 log_path = f"{log_dir}/log-{now}.md"
@@ -25,4 +25,12 @@ else:
 log_content = f"# Log – {human_time}\n\nUSD/AUD = {usd_aud}\n\n{signal}\n"
 with open(log_path, "w") as f:
     f.write(log_content)
+
+# === Auto-push with gitpush.sh ===
+import subprocess
+subprocess.run([
+    "./gitpush.sh",
+    log_path,
+    f"@{log_path}"
+])
 
