@@ -66,6 +66,7 @@ def act_endpoint():
                 return jsonify({"error": "Missing keycode for key action"}), 400
         else:
             return jsonify({"error": "Unknown action type"}), 400
+            return jsonify({"error": "Unknown action type"}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
