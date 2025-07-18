@@ -1,4 +1,5 @@
 import Quartz
+import time
 
 
 def move_mouse(x, y):
@@ -20,4 +21,5 @@ def key_press(keycode):
     event_down = Quartz.CGEventCreateKeyboardEvent(None, keycode, True)
     event_up = Quartz.CGEventCreateKeyboardEvent(None, keycode, False)
     Quartz.CGEventPost(Quartz.kCGHIDEventTap, event_down)
+    time.sleep(0.01) # Add a small delay
     Quartz.CGEventPost(Quartz.kCGHIDEventTap, event_up)
