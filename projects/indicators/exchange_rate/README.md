@@ -1,0 +1,1 @@
+Add architecture README: full indicator overview, data ports, pipelines, model plan
