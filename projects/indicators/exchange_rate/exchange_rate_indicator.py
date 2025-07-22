@@ -35,12 +35,13 @@ if len(close_prices) < lag_days + 2:
 print(f"close_prices: {close_prices}, len = {len(close_prices)}")
 exchange_rate_changes = np.round(np.diff(close_prices), 6)[-lag_days:]
 
-# --- TERMS OF TRADE (Scraped from TradingEconomics) ---
+# --- TERMS OF TRADE (from CSV) ---
 try:
-    df_tot = pd.read_html("https://tradingeconomics.com/australia/terms-of-trade", flavor="bs4")[0]
-    terms_of_trade = df_tot['Actual'].dropna().astype(float).values[-lag_days:]
+    tot_df = pd.read_csv("projects/indicators/exchange_rate/csvs/tot/tot.csv", parse_dates=["date"])
+    tot_df.sort_values("date", inplace=True)
+    terms_of_trade = tot_df["tot_index"].to_numpy()[-lag_days:]
 except Exception as e:
-    print(f"Terms of trade fetch failed: {e}")
+    print(f"ToT CSV fetch failed: {e}")
     terms_of_trade = np.full(lag_days, 1.1)
 
 # --- LOAD INTEREST RATE DIFFERENTIAL ---

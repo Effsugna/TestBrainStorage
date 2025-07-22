@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # === Config ===
-NGROK_URL="https://558edbc7dea5.ngrok-free.app"
+NGROK_URL="https://7a6ede8f10bc.ngrok-free.app"
 
 # === Input Handling ===
 FILE_PATH="$1"
