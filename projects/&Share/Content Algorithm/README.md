@@ -1,0 +1,1 @@
+Initial conceptual feed algorithm for Share V3 – complete vector scoring, feed logic, user onboarding logic, decay and boost logic all included. Pseudocode ready for future pipeline integration.
