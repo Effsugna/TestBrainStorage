@@ -1,0 +1,1 @@
+Add vite-guide.md with local dev and HMR instructions
