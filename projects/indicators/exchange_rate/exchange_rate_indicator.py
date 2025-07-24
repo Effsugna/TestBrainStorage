@@ -37,7 +37,11 @@ exchange_rate_changes = np.round(np.diff(close_prices), 6)[-lag_days:]
 
 # --- TERMS OF TRADE (from CSV) ---
 try:
-    tot_df = pd.read_csv("projects/indicators/exchange_rate/csvs/tot/tot.csv", parse_dates=["date"])
+    tot_df = pd.read_csv(
+        "projects/indicators/exchange_rate/csvs/tot/tot.csv",
+        parse_dates=["date"],
+        date_format=lambda x: pd.to_datetime(x, format="%Y-%m-%d")
+    )
     tot_df.sort_values("date", inplace=True)
     terms_of_trade = tot_df["tot_index"].to_numpy()[-lag_days:]
 except Exception as e:
@@ -48,64 +52,66 @@ except Exception as e:
 try:
     rates_df = pd.read_csv("projects/indicators/exchange_rate/csvs/interest_rate/rates.csv", parse_dates=["date"])
     rates_df.sort_values("date", inplace=True)
-    # Compute RBA – FED difference
     rates_df["interest_diff"] = rates_df["rba_rate"] - rates_df["fed_rate"]
     interest_diff = rates_df["interest_diff"].to_numpy()[-lag_days:]
 except Exception as e:
     print(f"Interest rate differential fetch failed: {e}")
-    interest_diff = np.full(lag_days, -5.5)  # fallback placeholder
+    interest_diff = np.full(lag_days, -5.5)
 
-# --- GDP DATA (Australia + US) from Wikipedia or fallback ---
+# --- GDP DATA (Australia + US) from CSV ---
 try:
-    gdp_tables = pd.read_html("https://en.wikipedia.org/wiki/Economy_of_Australia", flavor="bs4")
-    df_gdp = gdp_tables[0] if len(gdp_tables) else pd.DataFrame()
-    gdp_au = float(df_gdp[df_gdp.columns[1]].dropna().values[0])
-    gdp_domestic = np.full(lag_days, gdp_au)
+    df_au = pd.read_csv("projects/indicators/exchange_rate/csvs/gdp/aus_real_gdp.csv", parse_dates=["date"])
+    df_au.sort_values("date", inplace=True)
+    gdp_domestic = df_au["value"].to_numpy()[-lag_days:]
 except Exception as e:
-    print(f"AU GDP fetch failed: {e}")
+    print(f"AU GDP load failed: {e}")
     gdp_domestic = np.full(lag_days, 2.5)
 
 try:
-    gdp_tables_us = pd.read_html("https://en.wikipedia.org/wiki/Economy_of_the_United_States", flavor="bs4")
-    df_gdp_us = gdp_tables_us[0] if len(gdp_tables_us) else pd.DataFrame()
-    gdp_us = float(df_gdp_us[df_gdp_us.columns[1]].dropna().values[0])
-    gdp_foreign = np.full(lag_days, gdp_us)
+    df_us = pd.read_csv("projects/indicators/exchange_rate/csvs/gdp/us_real_gdp.csv", parse_dates=["date"])
+    df_us.sort_values("date", inplace=True)
+    gdp_foreign = df_us["value"].to_numpy()[-lag_days:]
 except Exception as e:
-    print(f"US GDP fetch failed: {e}")
+    print(f"US GDP load failed: {e}")
     gdp_foreign = np.full(lag_days, 1.9)
 
 # --- EXPECTATIONS BASED ON RECENT PRICES ---
 expectations = close_prices[-lag_days:]
 
-# --- PREDICTION LOGIC ---
-weights = np.array([0.4, 0.2, 0.1, 0.15, 0.15])
-expected_len = lag_days
+# --- INPUT NORMALIZATION ---
+def zscore(x):
+    x = np.asarray(x, dtype=float)
+    if np.std(x) == 0:
+        return np.zeros_like(x)
+    return (x - np.mean(x)) / np.std(x)
 
 input_series = {
     "exchange_rate_changes": exchange_rate_changes,
     "terms_of_trade": terms_of_trade,
     "interest_diff": interest_diff,
     "gdp_domestic": gdp_domestic,
-    "gdp_foreign": gdp_foreign,
-    "expectations": expectations
+    "gdp_foreign": gdp_foreign
 }
 
+# --- DEBUG RAW INPUTS ---
 for key, series in input_series.items():
-    if len(series) != expected_len:
-        print(f"Input '{key}' has invalid length: {len(series)} (expected {expected_len})")
-        exit()
+    print(f"{key} (raw): {series}")
 
-# --- DEBUGGING STACK ISSUE ---
-for key, series in input_series.items():
-    arr = np.ravel(series).astype(float)
-    print(f"{key}: shape = {arr.shape}, type = {type(arr)}, first few = {arr[:3]}")
+# --- NORMALIZE ---
+normalized_inputs = {k: zscore(v) for k, v in input_series.items()}
 
-inputs = np.stack([np.ravel(series).astype(float) for series in input_series.values()])
+# --- STACK VECTOR ---
+feature_vector = np.concatenate(list(normalized_inputs.values()))
+print(f"Feature vector (z-scored, stacked): {feature_vector}")
 
-avg_change = np.mean(inputs, axis=1)
-prediction = np.dot(weights, avg_change[:len(weights)])
-prediction_pct = round(prediction / close_prices[-1] * 100, 4)
-predicted_next_rate = round(close_prices[-1] + prediction, 6)
+# --- WEIGHTS AND OUTPUT ---
+weights = np.linspace(1.0, 0.6, len(feature_vector))
+weights /= np.sum(weights)
+
+prediction_change = np.dot(feature_vector, weights)
+prediction_change = np.clip(prediction_change, -0.02, 0.02)
+prediction_pct = round(prediction_change * 100, 4)
+predicted_next_rate = round(close_prices[-1] * (1 + prediction_change), 6)
 
 # --- LOG CONTENT ---
 timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -115,16 +121,15 @@ log_contents = f"""
 [{timestamp}] Predicted 1-day change in {output_currency_pair}: {prediction_pct:+.4f}%
 Predicted next rate: {predicted_next_rate}
 
-Inputs:
+Inputs (raw):
 - Close Prices (last {lag_days+1} days): {close_prices[-(lag_days+1):].tolist()}
-- ΔExchangeRate (t-5 to t-1): {exchange_rate_changes.tolist()}
+- ∆ExchangeRate (t-5 to t-1): {exchange_rate_changes.tolist()}
 - Terms of Trade: {terms_of_trade.tolist()}
 - Interest Rate Differential: {interest_diff.tolist()}
 - Domestic GDP (AU): {gdp_domestic.tolist()}
 - Foreign GDP (US): {gdp_foreign.tolist()}
-- Naive Expectations (from price): {expectations.tolist()}
 
-Model: Lag-weighted structural regression
+Model: Normalized Z-Score + Weighted Sum
 Forecast horizon: 1 trading day
 """.strip()
 

@@ -48,24 +48,58 @@ def update_gdp_series(series_id, existing_df, label, path):
 update_gdp_series(REAL_SERIES, real_au, "Real AUS", real_csv)
 update_gdp_series(NOM_SERIES, nom_au, "Nominal AUS", nom_csv)
 
-# --- US GDP (placeholder untouched) ---
-try:
-    bea_url = "https://apps.bea.gov/national/xls/gdp_qtr.xlsx"
-    xls = pd.ExcelFile(bea_url, engine="openpyxl")
-    df_us = pd.read_excel(xls, sheet_name="Table 1.1.5", skiprows=7)
-    df_us = df_us.rename(columns={df_us.columns[0]: "date_str"})
-    df_us = df_us[df_us["date_str"].str.contains("Q")]
-    df_us["date"] = pd.to_datetime(df_us["date_str"].str.replace("Q1", "-03-31")
-                                                    .str.replace("Q2", "-06-30")
-                                                    .str.replace("Q3", "-09-30")
-                                                    .str.replace("Q4", "-12-31"))
-    df_us["gdp_us"] = pd.to_numeric(df_us.iloc[:, 1], errors="coerce")
-    df_us = df_us[["date", "gdp_us"]].dropna()
-    df_us = df_us[df_us["date"].dt.year >= 1990]
-    print(f"🇺🇸 US GDP rows: {len(df_us)}")
-except Exception as e:
-    print(f"US GDP fetch failed: {e}")
-    df_us = pd.DataFrame()
+# --- US GDP via quantmod (from R, no API key) ---
+us_nom_csv = "projects/indicators/exchange_rate/csvs/gdp/us_nominal_gdp.csv"
+us_real_csv = "projects/indicators/exchange_rate/csvs/gdp/us_real_gdp.csv"
+
+def update_us_gdp(series_id, path, label):
+    try:
+        # Load existing
+        try:
+            existing_df = pd.read_csv(path, parse_dates=["date"])
+        except FileNotFoundError:
+            existing_df = pd.DataFrame(columns=["date", "value"])
+
+        # Pull via quantmod
+        ro.r("suppressMessages(library(quantmod))")
+        ro.r(f"getSymbols('{series_id}', src = 'FRED')")
+
+        # Evaluate and convert R object to pandas
+        r_ts = ro.r(f"as.data.frame({series_id})")
+        with localconverter(default_converter + pandas2ri.converter):
+            r_df = pandas2ri.rpy2py(r_ts)
+
+        # Ensure column names and formatting
+        # r_df comes from as.data.frame(GDP) which has rownames = date, and 1 unnamed column
+        if r_df.shape[1] == 1:
+            r_df.columns = ["value"]
+            r_df["date"] = pd.to_datetime(r_df.index)
+            r_df = r_df[["date", "value"]]
+        else:
+            raise ValueError(f"Unexpected structure in R GDP dataframe: {r_df.columns}")
+
+        r_df["date"] = pd.to_datetime(r_df["date"])
+
+        r_df = r_df[r_df["date"] >= datetime(1990, 1, 1)]
+
+        # Merge and deduplicate
+        merged = pd.merge(existing_df, r_df, on="date", how="outer", suffixes=("", "_new"))
+        merged["value"] = merged["value"].combine_first(merged["value_new"])
+        merged = merged[["date", "value"]].sort_values("date")
+
+        if merged.equals(existing_df.sort_values("date").reset_index(drop=True)):
+            print(f"✅ {label} GDP is already up to date")
+        else:
+            merged.to_csv(path, index=False)
+            print(f"⬆️  Updated {label} GDP CSV with {len(merged) - len(existing_df)} new row(s)")
+
+    except Exception as e:
+        print(f"❌ Failed to update {label} GDP: {e}")
+
+# --- Update US Real and Nominal GDP ---
+update_us_gdp("GDP", us_nom_csv, "Nominal US")
+update_us_gdp("GDPC1", us_real_csv, "Real US")
+
 
 # --- Merge AU + US GDP if needed (leave for now) ---
 try:

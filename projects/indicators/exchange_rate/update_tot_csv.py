@@ -2,34 +2,48 @@ import os
 import pandas as pd
 from rpy2.robjects import r
 from rpy2.robjects.packages import importr
+from rpy2.robjects.conversion import localconverter
+from rpy2.robjects import pandas2ri
 
-# Load R package
+# Load RBA library
 readrba = importr("readrba")
 
-# Load RBA table I1
-r('df <- read_rba(table_no = "I1")')
+# Load and subset ToT data
+r('library(readrba)')
+r('df <- read_rba(table_no = "H1")')
+r('tot_df <- subset(df, series_id == "GOPITT")')
+r('tot_df$date <- as.POSIXct(tot_df$date)')  # Enforce POSIX datetime
 
-# Filter in R for ToT series
-r('tot_df <- subset(df, series == "Trade balance as a per cent of output")')
+# Convert from R to pandas
+with localconverter(pandas2ri.converter):
+    df = r['tot_df']
 
-# Extract filtered dataframe
-tot_df = r['tot_df']
+# Clean & rename
+df_cleaned = df[['date', 'value']].copy()
+df_cleaned = df_cleaned.rename(columns={'value': 'tot_index'})
 
-# Build pandas DataFrame
-df = pd.DataFrame({
-    "date": list(tot_df.rx2("date")),
-    "tot_index": list(tot_df.rx2("value"))
-})
+print("🧼 Cleaned DataFrame before sort/save:")
+print(df_cleaned.head(10))
+print(df_cleaned.dtypes)
 
-# Sort by date
-df.sort_values("date", inplace=True)
+# Remove timezone if present
+df_cleaned["date"] = pd.to_datetime(df_cleaned["date"]).dt.tz_localize(None)
 
-# Create directory if needed
-output_dir = "projects/indicators/exchange_rate/csvs/tot"
-os.makedirs(output_dir, exist_ok=True)
+# Load existing CSV (if exists)
+csv_path = 'projects/indicators/exchange_rate/csvs/tot/tot.csv'
+os.makedirs(os.path.dirname(csv_path), exist_ok=True)
 
-# Save to CSV
-output_path = os.path.join(output_dir, "tot.csv")
-df.to_csv(output_path, index=False)
+if os.path.exists(csv_path):
+    df_old = pd.read_csv(csv_path, parse_dates=['date'])
+    df_old["date"] = pd.to_datetime(df_old["date"]).dt.tz_localize(None)
+    df_final = pd.concat([df_old, df_cleaned])
+    df_final = df_final.drop_duplicates(subset='date').sort_values('date')
+else:
+    df_final = df_cleaned
 
-print("✅ ToT data saved successfully at:", output_path)
+# ✅ Format `date` column for export
+df_final["date"] = df_final["date"].dt.strftime('%Y-%m-%d')
+
+# Export to CSV
+df_final.to_csv(csv_path, index=False)
+print(f"\n✅ Terms of Trade data updated at: {csv_path}")
