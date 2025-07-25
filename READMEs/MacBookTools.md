@@ -1,0 +1,1 @@
+Add MacBookTools.md with full survival tooling breakdown
