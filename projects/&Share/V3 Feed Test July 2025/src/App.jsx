@@ -6,7 +6,7 @@ import './App.css'
 function App() {
   const [activeStream, setActiveStream] = useState('For You')
   const [menuOpen, setMenuOpen] = useState(false)
-  const [streams, setStreams] = useState(['For You', 'Following', 'Photography', 'Design', 'Tech'])
+  const [streams, setStreams] = useState(['For You', 'Following', 'Saved'])
   const [editingIndex, setEditingIndex] = useState(null)
   const inputRef = useRef(null)
 

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # === Config ===
-NGROK_URL="https://7a6ede8f10bc.ngrok-free.app"
+NGROK_URL="https://e6968da8a58f.ngrok-free.app"
 
 # === Default log folder ===
 DEFAULT_DIR="testfiles/logs"

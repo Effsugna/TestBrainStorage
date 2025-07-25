@@ -90,12 +90,13 @@ html, body, #root {
 }
 
 .side-drawer button {
-  padding: 1rem;
-  font-size: 1rem;
-  color: #fff;
-  background-color: #2a2a2a;
   border: none;
-  border-radius: 10px;
+  background: none;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  font-weight: bold;
+  color: #aaa;
+  font-size: 1rem;
   text-align: left;
 }
 
